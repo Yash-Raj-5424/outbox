@@ -4,6 +4,7 @@ import com.pay.outbox.domain.entity.Payout;
 import com.pay.outbox.domain.enums.PayoutStatus;
 import com.pay.outbox.metrics.PayoutMetrics;
 import com.pay.outbox.repository.PayoutRepository;
+import com.pay.outbox.service.LedgerService;
 import com.pay.outbox.service.PaymentGatewayService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ public class PaymentProcessingWorker {
     private final PayoutRepository payoutRepository;
     private final PaymentGatewayService paymentGatewayService;
     private final PayoutMetrics payoutMetrics;
+    private final LedgerService ledgerService;
 
 
     @Scheduled(fixedDelay = 3000)
@@ -56,6 +58,10 @@ public class PaymentProcessingWorker {
             PayoutStatus result = paymentGatewayService.processPayment(payload);
             payout.setStatus(result);
             payoutRepository.save(payout);
+
+            if (result == PayoutStatus.FAILED || result == PayoutStatus.CANCELLED) {
+                ledgerService.releaseBalance(payout.getRecipientId(), payout.getAmount());
+            }
 
             switch (result) {
                 case COMPLETED -> payoutMetrics.incrementCompleted();

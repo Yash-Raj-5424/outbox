@@ -5,6 +5,7 @@ import com.pay.outbox.domain.entity.OutboxEvent;
 import com.pay.outbox.domain.enums.PayoutStatus;
 import com.pay.outbox.dto.PayoutRequest;
 import com.pay.outbox.dto.PayoutResponse;
+import com.pay.outbox.exception.InsufficientBalanceException;
 import com.pay.outbox.exception.PayoutNotFoundException;
 import com.pay.outbox.metrics.PayoutMetrics;
 import com.pay.outbox.repository.OutboxEventRepository;
@@ -25,15 +26,21 @@ public class PayoutService {
     private final PayoutRepository payoutRepository;
     private final OutboxEventRepository outboxEventRepository;
     private final PayoutMetrics payoutMetrics;
+    private final LedgerService ledgerService;
 
     @Transactional
-    public PayoutResponse initiatePayout(PayoutRequest request) {
+    public PayoutResponse initiatePayout(PayoutRequest request) throws InsufficientBalanceException {
 
         // check idempotency
         Optional<Payout> existing = payoutRepository.findByIdempotencyKey(request.getIdempotencyKey());
         if (existing.isPresent()) {
             log.info("Duplicate request detected for idempotency key: {}", request.getIdempotencyKey());
             return mapToResponse(existing.get());
+        }
+
+        boolean held = ledgerService.holdBalance(request.getRecipientId(), request.getAmount());
+        if (!held) {
+            throw new InsufficientBalanceException("Insufficient balance or account not found for recipient: " + request.getRecipientId());
         }
 
         // create payout

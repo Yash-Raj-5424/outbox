@@ -2,6 +2,7 @@ package com.pay.outbox.controller;
 
 import com.pay.outbox.dto.PayoutRequest;
 import com.pay.outbox.dto.PayoutResponse;
+import com.pay.outbox.service.LedgerService;
 import com.pay.outbox.service.PayoutService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import java.util.UUID;
 public class PayoutController {
 
     private final PayoutService payoutService;
+    private final LedgerService ledgerService;
 
     @PostMapping
     public ResponseEntity<PayoutResponse> initiatePayout(@Valid @RequestBody PayoutRequest request) {
@@ -32,5 +34,21 @@ public class PayoutController {
         log.info("Fetching payout with id: {}", id);
         PayoutResponse response = payoutService.getPayoutById(id);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/ledger/seed")
+    public ResponseEntity<String> seedBalance(@RequestParam String accountId,
+                                              @RequestParam Long amount) {
+        ledgerService.seedBalance(accountId, amount);
+        return ResponseEntity.ok("Balance seeded: " + amount + " for account: " + accountId);
+    }
+
+    @GetMapping("/ledger/balance/{accountId}")
+    public ResponseEntity<Long> getBalance(@PathVariable String accountId) {
+        Long balance = ledgerService.getBalance(accountId);
+        if (balance == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(balance);
     }
 }
