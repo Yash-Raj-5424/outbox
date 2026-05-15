@@ -5,6 +5,7 @@ import com.pay.outbox.domain.entity.OutboxEvent;
 import com.pay.outbox.domain.enums.PayoutStatus;
 import com.pay.outbox.dto.PayoutRequest;
 import com.pay.outbox.dto.PayoutResponse;
+import com.pay.outbox.exception.PayoutNotFoundException;
 import com.pay.outbox.repository.OutboxEventRepository;
 import com.pay.outbox.repository.PayoutRepository;
 import lombok.RequiredArgsConstructor;
@@ -62,7 +63,7 @@ public class PayoutService {
     @Transactional(readOnly = true)
     public PayoutResponse getPayoutById(UUID id) {
         Payout payout = payoutRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Payout not found with id: " + id));
+                .orElseThrow(() -> new PayoutNotFoundException("Payout not found with id: " + id));
         return mapToResponse(payout);
     }
 
