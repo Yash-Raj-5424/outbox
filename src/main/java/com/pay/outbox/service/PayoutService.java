@@ -6,6 +6,7 @@ import com.pay.outbox.domain.enums.PayoutStatus;
 import com.pay.outbox.dto.PayoutRequest;
 import com.pay.outbox.dto.PayoutResponse;
 import com.pay.outbox.exception.PayoutNotFoundException;
+import com.pay.outbox.metrics.PayoutMetrics;
 import com.pay.outbox.repository.OutboxEventRepository;
 import com.pay.outbox.repository.PayoutRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class PayoutService {
 
     private final PayoutRepository payoutRepository;
     private final OutboxEventRepository outboxEventRepository;
+    private final PayoutMetrics payoutMetrics;
 
     @Transactional
     public PayoutResponse initiatePayout(PayoutRequest request) {
@@ -44,6 +46,7 @@ public class PayoutService {
                 .build();
 
         payoutRepository.save(payout);
+        payoutMetrics.incrementInitiated();
         log.info("Payout created with id: {}", payout.getId());
 
         // create outbox event atomically in same transaction

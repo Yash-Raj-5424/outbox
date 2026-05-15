@@ -2,6 +2,7 @@ package com.pay.outbox.worker;
 
 import com.pay.outbox.domain.entity.Payout;
 import com.pay.outbox.domain.enums.PayoutStatus;
+import com.pay.outbox.metrics.PayoutMetrics;
 import com.pay.outbox.repository.PayoutRepository;
 import com.pay.outbox.service.PaymentGatewayService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class PaymentProcessingWorker {
     private final RedisTemplate<String, String> redisTemplate;
     private final PayoutRepository payoutRepository;
     private final PaymentGatewayService paymentGatewayService;
+    private final PayoutMetrics payoutMetrics;
 
 
     @Scheduled(fixedDelay = 3000)
@@ -55,6 +57,11 @@ public class PaymentProcessingWorker {
             payout.setStatus(result);
             payoutRepository.save(payout);
 
+            switch (result) {
+                case COMPLETED -> payoutMetrics.incrementCompleted();
+                case FAILED    -> payoutMetrics.incrementFailed();
+                default        -> {}
+            }
             log.info("Payout id: {} processed with status: {}", payoutId, result);
 
         } catch (Exception e) {

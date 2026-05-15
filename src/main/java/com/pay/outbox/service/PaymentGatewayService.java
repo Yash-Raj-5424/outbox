@@ -2,6 +2,8 @@ package com.pay.outbox.service;
 
 import com.pay.outbox.domain.enums.PayoutStatus;
 import com.pay.outbox.exception.PaymentHangException;
+import com.pay.outbox.metrics.PayoutMetrics;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
@@ -12,9 +14,11 @@ import java.util.Random;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class PaymentGatewayService {
 
     private final Random random = new Random();
+    private final PayoutMetrics payoutMetrics;
 
     @Retryable(
             retryFor = PaymentHangException.class,
@@ -34,6 +38,7 @@ public class PaymentGatewayService {
             return PayoutStatus.FAILED;
         } else {
             log.warn("Payment gateway HANG — will retry with backoff");
+            payoutMetrics.incrementHang();
             throw new PaymentHangException("Payment gateway hung");
         }
     }
