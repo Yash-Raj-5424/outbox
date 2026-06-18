@@ -1,5 +1,7 @@
 package com.pay.outbox.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pay.outbox.domain.entity.Payout;
 import com.pay.outbox.domain.entity.OutboxEvent;
 import com.pay.outbox.domain.enums.PayoutStatus;
@@ -15,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,6 +30,7 @@ public class PayoutService {
     private final OutboxEventRepository outboxEventRepository;
     private final PayoutMetrics payoutMetrics;
     private final LedgerService ledgerService;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public PayoutResponse initiatePayout(PayoutRequest request) throws InsufficientBalanceException {
@@ -91,9 +95,17 @@ public class PayoutService {
     }
 
     private String buildPayload(Payout payout) {
-        return String.format(
-                "{\"payoutId\":\"%s\",\"recipientId\":\"%s\",\"amount\":%d,\"currency\":\"%s\"}",
-                payout.getId(), payout.getRecipientId(), payout.getAmount(), payout.getCurrency()
-        );
+        try{
+            Map<String, Object> payload = Map.of(
+                    "payoutId", payout.getId().toString(),
+                    "recipientId", payout.getRecipientId(),
+                    "amount", payout.getAmount(),
+                    "currency", payout.getCurrency()
+            );
+            return objectMapper.writeValueAsString(payload);
+        }catch(JsonProcessingException e){
+            log.error("Error while serializing payload for payout id: {}", payout.getId(), e);
+            throw new RuntimeException("Failed to build outbox event payload", e);
+        }
     }
 }
