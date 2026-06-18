@@ -1,6 +1,7 @@
 package com.pay.outbox.repository;
 
 import com.pay.outbox.domain.entity.OutboxEvent;
+import com.pay.outbox.domain.enums.OutboxStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -10,5 +11,5 @@ import java.util.UUID;
 @Repository
 public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> {
 
-    List<OutboxEvent> findByStatus(String status);
+    List<OutboxEvent> findByStatus(OutboxStatus status);
 }

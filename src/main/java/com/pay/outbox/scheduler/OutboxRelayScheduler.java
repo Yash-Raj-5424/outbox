@@ -1,6 +1,7 @@
 package com.pay.outbox.scheduler;
 
 import com.pay.outbox.domain.entity.OutboxEvent;
+import com.pay.outbox.domain.enums.OutboxStatus;
 import com.pay.outbox.repository.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,10 +32,10 @@ public class OutboxRelayScheduler {
         lockAtLeastFor = "4s"
     )
     @Transactional
-    public void relay() {
-        List<OutboxEvent> pendingEvents = outboxEventRepository.findByStatus("PENDING");
+    public void relay(){
+        List<OutboxEvent> pendingEvents = outboxEventRepository.findByStatus(OutboxStatus.RELAYED);
 
-        if (pendingEvents.isEmpty()) {
+        if(pendingEvents.isEmpty()){
             log.debug("No pending outbox events found");
             return;
         }
@@ -43,22 +44,22 @@ public class OutboxRelayScheduler {
 
         List<OutboxEvent> relayedEvents = new ArrayList<>();
 
-        for (OutboxEvent event : pendingEvents) {
-            try {
+        for(OutboxEvent event : pendingEvents){
+            try{
                 // Push payload to Redis queue
                 redisTemplate.opsForList().rightPush(REDIS_QUEUE_KEY, event.getPayload());
 
                 // Mark event as RELAYED
-                event.setStatus("RELAYED");
+                event.setStatus(OutboxStatus.RELAYED);
                 event.setProcessedAt(LocalDateTime.now());
                 relayedEvents.add(event);
                 log.info("Relayed outbox event id: {}", event.getId());
-            } catch (Exception e) {
+            }catch (Exception e) {
                 log.error("Failed to relay outbox event id: {}", event.getId(), e);
             }
         }
 
-        if (!relayedEvents.isEmpty()) { // update all in batch
+        if(!relayedEvents.isEmpty()) { // update all in batch
             outboxEventRepository.saveAll(relayedEvents);
             log.info("Batch saved {} outbox events", relayedEvents.size());
         }

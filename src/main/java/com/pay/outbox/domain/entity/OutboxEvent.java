@@ -1,5 +1,6 @@
 package com.pay.outbox.domain.entity;
 
+import com.pay.outbox.domain.enums.OutboxStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -31,7 +32,8 @@ public class OutboxEvent {
     private String payload;
 
     @Column(nullable = false)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private OutboxStatus status;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -42,6 +44,6 @@ public class OutboxEvent {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
-        if (status == null) status = "PENDING";
+        if (status == null) status = OutboxStatus.PENDING;
     }
 }

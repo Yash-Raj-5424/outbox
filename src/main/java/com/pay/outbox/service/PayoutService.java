@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pay.outbox.domain.entity.Payout;
 import com.pay.outbox.domain.entity.OutboxEvent;
+import com.pay.outbox.domain.enums.OutboxStatus;
 import com.pay.outbox.domain.enums.PayoutStatus;
 import com.pay.outbox.dto.PayoutRequest;
 import com.pay.outbox.dto.PayoutResponse;
@@ -65,7 +66,7 @@ public class PayoutService {
                 .payoutId(payout.getId())
                 .eventType("PAYOUT_INITIATED")
                 .payload(buildPayload(payout))
-                .status("PENDING")
+                .status(OutboxStatus.PENDING)
                 .build();
 
         outboxEventRepository.save(event);
