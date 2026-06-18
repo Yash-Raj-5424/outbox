@@ -9,6 +9,7 @@ import com.pay.outbox.service.PaymentGatewayService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,22 +33,23 @@ public class PaymentProcessingWorker {
 
     @Scheduled(fixedDelay = 3000)
     @Transactional
+    @Async("paymentWorkerExecutor")
     public void process() {
         // Pop from Redis queue (blocking left pop)
         String payload = redisTemplate.opsForList().leftPop(REDIS_QUEUE_KEY);
 
-        if (payload == null) {
+        if (payload == null){
             log.debug("No events in Redis queue");
             return;
         }
         log.info("Processing payload from queue: {}", payload);
 
-        try {
+        try{
             UUID payoutId = extractPayoutId(payload);
             Optional<Payout> optionalPayout = payoutRepository.findById(payoutId);
 
-            if (optionalPayout.isEmpty()) {
-                log.warn("Payout not found for id: {}", payoutId);
+            if (optionalPayout.isEmpty()){
+                log.debug("Payout not found for id: {}", payoutId);
                 return;
             }
 
@@ -65,12 +67,12 @@ public class PaymentProcessingWorker {
 
             switch (result) {
                 case COMPLETED -> payoutMetrics.incrementCompleted();
-                case FAILED    -> payoutMetrics.incrementFailed();
-                default        -> {}
+                case FAILED -> payoutMetrics.incrementFailed();
+                default -> {}
             }
             log.info("Payout id: {} processed with status: {}", payoutId, result);
 
-        } catch (Exception e) {
+        } catch(Exception e){
             log.error("Error processing payment from queue", e);
         }
     }
