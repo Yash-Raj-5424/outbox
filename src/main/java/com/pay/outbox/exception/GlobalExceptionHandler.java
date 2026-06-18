@@ -2,6 +2,7 @@ package com.pay.outbox.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -17,15 +19,19 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final String BASE_URL = "https://outbox-payments.com/errors";
+
     @ExceptionHandler(PayoutNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handlePayoutNotFound(PayoutNotFoundException ex) {
+    public ProblemDetail handlePayoutNotFound(PayoutNotFoundException ex) {
         log.warn("Payout not found: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(new ErrorResponse(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Payout Not Found");
+        problem.setType(URI.create(BASE_URL + "/payout-not-found"));
+        return problem;
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationErrors(MethodArgumentNotValidException ex) {
+    public ProblemDetail handleValidationErrors(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
             String field = ((FieldError) error).getField();
@@ -33,29 +39,40 @@ public class GlobalExceptionHandler {
             errors.put(field, message);
         });
         log.warn("Validation failed: {}", errors);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Validation failed", errors));
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "One or more fields are invalid");
+        problem.setTitle("Validation Failed");
+        problem.setType(URI.create(BASE_URL + "/validation-failed"));
+        problem.setProperty("errors", errors);
+        return problem;
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
+    public ProblemDetail handleGenericException(Exception ex) {
         log.error("Unexpected error: {}", ex.getMessage(), ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "An unexpected error occurred"));
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
+                "An unexpected error occurred");
+        problem.setTitle("Internal Server Error");
+        problem.setType(URI.create(BASE_URL + "/internal-server-error"));
+        return problem;
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ErrorResponse> handleMessageNotReadable(HttpMessageNotReadableException ex) {
+    public ProblemDetail handleMessageNotReadable(HttpMessageNotReadableException ex) {
         log.warn("Malformed or missing request body: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Request body is missing or malformed"));
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+                "Request body is missing or malformed");
+        problem.setTitle("Malformed Request");
+        problem.setType(URI.create(BASE_URL + "/malformed-request"));
+        return problem;
     }
 
     @ExceptionHandler(InsufficientBalanceException.class)
-    public ResponseEntity<ErrorResponse> handleInsufficientBalance(InsufficientBalanceException ex) {
+    public ProblemDetail handleInsufficientBalance(InsufficientBalanceException ex) {
         log.warn("Insufficient balance: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(new ErrorResponse(HttpStatus.UNPROCESSABLE_ENTITY.value(), ex.getMessage()));
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        problem.setTitle("Insufficient Balance");
+        problem.setType(URI.create(BASE_URL + "/insufficient-balance"));
+        return problem;
     }
 
 }
