@@ -2,6 +2,7 @@ package com.pay.outbox.worker;
 
 import com.pay.outbox.domain.entity.Payout;
 import com.pay.outbox.domain.enums.PayoutStatus;
+import com.pay.outbox.exception.PaymentExhaustedException;
 import com.pay.outbox.metrics.PayoutMetrics;
 import com.pay.outbox.repository.PayoutRepository;
 import com.pay.outbox.service.LedgerService;
@@ -24,6 +25,8 @@ import java.util.UUID;
 public class PaymentProcessingWorker {
 
     private static final String REDIS_QUEUE_KEY = "payout:queue";
+    private static final String REDIS_DLQ_KEY = "payout:dlq";
+
     private final RedisTemplate<String, String> redisTemplate;
     private final PayoutRepository payoutRepository;
     private final PaymentGatewayService paymentGatewayService;
@@ -32,8 +35,8 @@ public class PaymentProcessingWorker {
 
 
     @Scheduled(fixedDelay = 3000)
-    @Transactional
     @Async("paymentWorkerExecutor")
+    @Transactional
     public void process() {
         // Pop from Redis queue (blocking left pop)
         String payload = redisTemplate.opsForList().leftPop(REDIS_QUEUE_KEY);
@@ -57,20 +60,32 @@ public class PaymentProcessingWorker {
             payout.setAttempts(payout.getAttempts() + 1);
 
             // simulate payment gateway response
-            PayoutStatus result = paymentGatewayService.processPayment(payload);
-            payout.setStatus(result);
-            payoutRepository.save(payout);
+            try {
+                PayoutStatus result = paymentGatewayService.processPayment(payload);
 
-            if (result == PayoutStatus.FAILED || result == PayoutStatus.CANCELLED) {
+                payout.setStatus(result);
+                payoutRepository.save(payout);
+
+                if (result == PayoutStatus.FAILED || result == PayoutStatus.CANCELLED) {
+                    ledgerService.releaseBalance(payout.getRecipientId(), payout.getAmount());
+                }
+
+                switch (result) {
+                    case COMPLETED -> payoutMetrics.incrementCompleted();
+                    case FAILED -> payoutMetrics.incrementFailed();
+                    default -> {
+                    }
+                }
+                log.info("Payout id: {} processed with status: {}", payoutId, result);
+            }catch(PaymentExhaustedException e){
+                log.error("Payment exhausted for payout id: {}. Pushing to DLQ", payoutId);
+                payout.setStatus(PayoutStatus.FAILED);
+                payoutRepository.save(payout);
                 ledgerService.releaseBalance(payout.getRecipientId(), payout.getAmount());
+                redisTemplate.opsForList().rightPush(REDIS_DLQ_KEY, payload);
+                payoutMetrics.incrementFailed();
+                log.info("Pushed to DLQ: {}", payload);
             }
-
-            switch (result) {
-                case COMPLETED -> payoutMetrics.incrementCompleted();
-                case FAILED -> payoutMetrics.incrementFailed();
-                default -> {}
-            }
-            log.info("Payout id: {} processed with status: {}", payoutId, result);
 
         } catch(Exception e){
             log.error("Error processing payment from queue", e);

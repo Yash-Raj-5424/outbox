@@ -7,10 +7,12 @@ import com.pay.outbox.service.PayoutService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -21,6 +23,7 @@ public class PayoutController {
 
     private final PayoutService payoutService;
     private final LedgerService ledgerService;
+    private final RedisTemplate<String, String> redisTemplate;
 
     @PostMapping
     public ResponseEntity<PayoutResponse> initiatePayout(@Valid @RequestBody PayoutRequest request) {
@@ -50,5 +53,13 @@ public class PayoutController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(balance);
+    }
+
+    @GetMapping("/dlq")
+    public ResponseEntity<List<String>> getDlqEntries(){
+        List<String> entries = redisTemplate.opsForList()
+                .range("payout:dlq", 0, -1);
+
+        return ResponseEntity.ok(entries != null ? entries : List.of());
     }
 }

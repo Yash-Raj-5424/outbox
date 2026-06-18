@@ -1,6 +1,7 @@
 package com.pay.outbox.service;
 
 import com.pay.outbox.domain.enums.PayoutStatus;
+import com.pay.outbox.exception.PaymentExhaustedException;
 import com.pay.outbox.exception.PaymentHangException;
 import com.pay.outbox.metrics.PayoutMetrics;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,6 @@ public class PaymentGatewayService {
     @Recover
     public PayoutStatus recover(PaymentHangException e, String payload) {
         log.error("All retry attempts exhausted for payload: {}", payload);
-        return PayoutStatus.FAILED;
+        throw new PaymentExhaustedException("All retries exhausted for payload: " + payload);
     }
 }
