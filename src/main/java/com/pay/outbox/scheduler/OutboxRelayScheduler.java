@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -34,6 +35,8 @@ public class OutboxRelayScheduler {
 
         log.info("Found {} pending outbox events, relaying to Redis", pendingEvents.size());
 
+        List<OutboxEvent> relayedEvents = new ArrayList<>();
+
         for (OutboxEvent event : pendingEvents) {
             try {
                 // Push payload to Redis queue
@@ -42,12 +45,16 @@ public class OutboxRelayScheduler {
                 // Mark event as RELAYED
                 event.setStatus("RELAYED");
                 event.setProcessedAt(LocalDateTime.now());
-                outboxEventRepository.save(event);
-
+                relayedEvents.add(event);
                 log.info("Relayed outbox event id: {}", event.getId());
             } catch (Exception e) {
                 log.error("Failed to relay outbox event id: {}", event.getId(), e);
             }
+        }
+
+        if (!relayedEvents.isEmpty()) { // update all in batch
+            outboxEventRepository.saveAll(relayedEvents);
+            log.info("Batch saved {} outbox events", relayedEvents.size());
         }
     }
 }
