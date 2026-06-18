@@ -4,6 +4,7 @@ import com.pay.outbox.domain.entity.OutboxEvent;
 import com.pay.outbox.repository.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -24,6 +25,11 @@ public class OutboxRelayScheduler {
     private final RedisTemplate<String, String> redisTemplate;
 
     @Scheduled(fixedDelay = 5000)
+    @SchedulerLock(
+        name = "outboxRelayScheduler",
+        lockAtMostFor = "10s",
+        lockAtLeastFor = "4s"
+    )
     @Transactional
     public void relay() {
         List<OutboxEvent> pendingEvents = outboxEventRepository.findByStatus("PENDING");
